@@ -876,7 +876,7 @@
 const SUPABASE_URL = "https://wflaneoglydtgieytqgy.supabase.co/";
 const SUPABASE_KEY = "sb_publishable_DGPH6FHxarnzo767CGyx_Q_MykoE5sf";
 const SUPABASE_TABLE = "os";
-
+const CHAVE_FOLHA_PENDENTE = 'folha_pendente_os';
 function supabaseAtivo() {
     return !!SUPABASE_URL && SUPABASE_URL.includes("supabase.co");
 }
@@ -936,24 +936,53 @@ function salvarBancoOS(lista) {
 }
 
 async function gerarNumeroFolhaBanco() {
-    if (!supabaseAtivo()) {
-        const ultimo = parseInt(localStorage.getItem('os_counter') || '0', 10) + 1;
-        localStorage.setItem('os_counter', String(ultimo));
-        return String(ultimo).padStart(5, '0');
+    const folhaLocal = getFolhaPendenteLocal();
+
+    if (folhaLocal) {
+        return folhaLocal;
     }
 
-    const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=codfolha&order=codfolha.desc&limit=1`;
-    const rows = await supabaseRequest(url, {
-        method: "GET",
-        headers: supabaseHeaders()
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pegar_ou_reservar_codfolha`, {
+        method: "POST",
+        headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
     });
 
-    let ultimo = 0;
-    if (rows && rows.length && rows[0].codfolha) {
-        ultimo = parseInt(String(rows[0].codfolha).replace(/\D/g, ""), 10) || 0;
+    if (!resp.ok) {
+        throw new Error(await resp.text());
     }
 
-    return String(ultimo + 1).padStart(5, '0');
+    const numero = await resp.json();
+
+    setFolhaPendenteLocal(numero);
+
+    return numero;
+}
+
+function getFolhaPendenteLocal() {
+    try {
+        return localStorage.getItem(CHAVE_FOLHA_PENDENTE) || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function setFolhaPendenteLocal(codfolha) {
+    try {
+        if (codfolha) {
+            localStorage.setItem(CHAVE_FOLHA_PENDENTE, codfolha);
+        }
+    } catch (e) {}
+}
+
+function limparFolhaPendenteLocal() {
+    try {
+        localStorage.removeItem(CHAVE_FOLHA_PENDENTE);
+    } catch (e) {}
 }
 
 function limparFormularioCompleto() {
@@ -1069,8 +1098,12 @@ function coletarDadosFormulario() {
 
 async function salvarOSNoBanco() {
     const dados = coletarDadosFormulario();
-    const numero = normalizarNumeroFolha(dados['i-codfolha'] || '');
-    if (!numero) return;
+
+    let numero = normalizarNumeroFolha(dados['i-codfolha'] || '');
+
+    if (!numero) {
+        numero = await gerarNumeroFolhaBanco();
+    }
 
     dados['i-codfolha'] = numero;
     document.getElementById('i-codfolha').value = numero;
@@ -1085,6 +1118,7 @@ async function salvarOSNoBanco() {
     if (!supabaseAtivo()) {
         const banco = await getBancoOS();
         const idx = banco.findIndex(item => item.osnum === numero);
+
         const localRegistro = {
             osnum: numero,
             dados: dados,
@@ -1097,17 +1131,45 @@ async function salvarOSNoBanco() {
 
         banco.sort((a, b) => parseInt(b.osnum, 10) - parseInt(a.osnum, 10));
         salvarBancoOS(banco);
+
+        limparFolhaPendenteLocal();
         return;
     }
 
     const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?on_conflict=codfolha`;
-    await supabaseRequest(url, {
+
+    const respSalvar = await fetch(url, {
         method: "POST",
-        headers: supabaseHeaders({
+        headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates,return=minimal"
-        }),
+        },
         body: JSON.stringify([registro])
     });
+
+    if (!respSalvar.ok) {
+        throw new Error(await respSalvar.text());
+    }
+
+    const respMarcar = await fetch(`${SUPABASE_URL}/rest/v1/rpc/marcar_codfolha_como_usado`, {
+        method: "POST",
+        headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            p_codfolha: numero
+        })
+    });
+
+    if (!respMarcar.ok) {
+        throw new Error(await respMarcar.text());
+    }
+
+    limparFolhaPendenteLocal();
 }
 
 async function carregarOSExistente(numero) {
@@ -1780,6 +1842,7 @@ function inicializarBuscaOS() {
             localStorage.removeItem('os_form_data');
             localStorage.removeItem('os_choices');
             location.reload();
+        limparFolhaPendenteLocal();
         }
     }
 
@@ -2201,7 +2264,9 @@ async function apagarOSAtual(){
     } catch (e) {
         alert('Erro ao apagar OS: ' + e.message);
     }
+   limparFolhaPendenteLocal();
 }
+
 
 
 document.addEventListener('input', function(e){
