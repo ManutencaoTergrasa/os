@@ -39,19 +39,6 @@
             overflow-x: hidden;
         }
 
-        #app-container {
-            background: var(--branco);
-            width: min(210mm, 100%);
-            min-height: calc(100vh - 24px);
-            padding: 12mm;
-            box-sizing: border-box;
-            position: relative;
-            box-shadow: 0 4px 24px rgba(0,40,100,0.13);
-            border-radius: 10px;
-            margin: 0 auto;
-            overflow: hidden;
-        }
-
         /* ── OVERLAY ── */
         .quiz-overlay {
             position: absolute;
@@ -504,9 +491,81 @@
         }
         .btn-gerar { animation: pulse-green 2s ease-in-out infinite; }
 
-        /* ── RESPONSIVO MOBILE ── */
-        @media (max-width: 1024px) {
-            body { padding: 0; align-items: flex-start; }
+        /* ── RESPONSIVO — 3 CAMADAS ── */
+
+        /* ── DESKTOP (padrão, >1024px) — sem mudanças nas cores ── */
+        #app-container {
+            background: var(--branco);
+            width: min(210mm, 100%);
+            min-height: calc(100vh - 24px);
+            padding: 12mm;
+            box-sizing: border-box;
+            position: relative;
+            box-shadow: 0 4px 24px rgba(0,40,100,0.13);
+            border-radius: 10px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        /* ── TABLET (600px – 1024px) ── */
+        @media (min-width: 600px) and (max-width: 1024px) {
+            body { padding: 8px; }
+
+            #app-container {
+                width: 100%;
+                min-height: 100dvh;
+                padding: 16px 18px 40px;
+                border-radius: 12px;
+                box-shadow: 0 2px 16px rgba(0,40,100,0.10);
+            }
+
+            .quiz-overlay {
+                border-radius: 12px;
+                padding: 20px 16px 60px;
+            }
+
+            .step-container {
+                max-width: 620px;
+                padding: 24px 20px;
+            }
+
+            /* Grid mantém 2 colunas no tablet */
+            .grid-2 { grid-template-columns: 1fr 1fr; gap: 14px; }
+
+            /* Botões maiores para toque com dedo */
+            .btn        { padding: 16px 18px; font-size: 15px; min-height: 52px; }
+            .btn-next   { padding: 18px; font-size: 16px; min-height: 56px; }
+            .btn-back   { padding: 14px; font-size: 13px; min-height: 48px; }
+            .btn-reset  { padding: 14px; font-size: 13px; min-height: 48px; }
+
+            /* Inputs maiores — sem zoom automático iOS */
+            input, textarea, select { font-size: 16px; padding: 13px 14px; min-height: 50px; }
+
+            /* Dropdowns de busca fixos na tela */
+            .search-results {
+                position: fixed !important;
+                left: 12px !important;
+                right: 12px !important;
+                width: auto !important;
+                max-height: 42vh;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch;
+                touch-action: pan-y;
+                overscroll-behavior: contain;
+                font-size: 15px;
+            }
+
+            .search-item { padding: 14px 14px; font-size: 14px; min-height: 48px; }
+
+            #exec-inputs { max-height: none !important; overflow-y: visible !important; }
+
+            .prog-label { font-size: 10px; }
+            .prog-dot   { width: 30px; height: 30px; font-size: 12px; }
+        }
+
+        /* ── MOBILE (<600px) ── */
+        @media (max-width: 599px) {
+            body { padding: 0; }
 
             #app-container {
                 width: 100%;
@@ -518,41 +577,56 @@
 
             .quiz-overlay {
                 border-radius: 0;
-                padding: 16px 14px 60px;
-                justify-content: flex-start;
+                padding: 12px 12px 80px;
+                /* Safe area para iPhone com notch */
+                padding-bottom: max(80px, calc(env(safe-area-inset-bottom) + 20px));
             }
 
-            .step-container { padding: 20px 14px; }
+            .step-container { padding: 18px 14px; }
 
-            .grid-2 { grid-template-columns: 1fr; }
+            /* Grid 1 coluna no mobile */
+            .grid-2 { grid-template-columns: 1fr; gap: 10px; }
 
             h2 { font-size: 16px; }
 
-            /* Evita zoom automático no iOS ao focar em input */
-            input, textarea, select { font-size: 16px; }
+            /* Botões grandes para toque fácil */
+            .btn        { padding: 16px; font-size: 15px; min-height: 52px; text-align: center; }
+            .btn-next   { padding: 18px; font-size: 15px; min-height: 54px; }
+            .btn-back   { padding: 14px; font-size: 13px; min-height: 48px; }
+            .btn-reset  { padding: 14px; font-size: 13px; min-height: 48px; }
 
+            /* Evita zoom automático no iOS */
+            input, textarea, select { font-size: 16px; padding: 13px 12px; min-height: 50px; }
+
+            /* Dropdowns em tela cheia no mobile */
             .search-results {
                 position: fixed !important;
-                left: 10px !important;
-                right: 10px !important;
+                left: 8px !important;
+                right: 8px !important;
                 width: auto !important;
                 max-height: 45vh;
                 overflow-y: auto !important;
-                overflow-x: hidden !important;
                 -webkit-overflow-scrolling: touch;
                 touch-action: pan-y;
                 overscroll-behavior: contain;
             }
 
-            /* Executantes sem scroll forçado no mobile */
+            .search-item { padding: 14px 12px; font-size: 14px; min-height: 48px; }
+
             #exec-inputs { max-height: none !important; overflow-y: visible !important; }
 
-            /* Barra de progresso menor no mobile */
+            /* Barra de progresso compacta */
             .prog-label { display: none; }
-            .prog-dot { width: 24px; height: 24px; font-size: 10px; }
-            .progress-steps::before { top: 12px; }
-            .progress-fill { top: 12px; }
-            .progress-bar-wrap { margin-bottom: 14px; }
+            .prog-dot   { width: 26px; height: 26px; font-size: 10px; }
+            .progress-steps::before { top: 13px; }
+            .progress-fill { top: 13px; }
+            .progress-bar-wrap { margin-bottom: 12px; }
+
+            /* Feedback de toque mais visível */
+            .btn:active, .btn-next:active, .btn-back:active, .btn-reset:active {
+                transform: scale(0.97);
+                opacity: 0.88;
+            }
         }
 
         /* ── IMPRESSÃO ── */
@@ -725,6 +799,7 @@
             <textarea id="i-obs" rows="2" placeholder="Informações extras (Opcional)..."></textarea>
 
             <button class="btn btn-next btn-gerar" style="background:#28a745;" onclick="gerarFolha()">✅ GERAR OS</button>
+            <button id="btn-apagar-edicao" class="btn-reset" onclick="apagarOSAtual()" style="display:none; background:#dc3545;">🗑 APAGAR ESTA OS</button>
             <button class="btn-back" onclick="nextStep('step-exec', 'step-desc')">← Voltar</button>
             <button class="btn-reset" onclick="resetAll()">RECOMEÇAR TUDO</button>
         </div>
@@ -806,13 +881,6 @@
     localStorage.removeItem('os_form_data');
     localStorage.removeItem('os_choices');
 
-    try {
-        document.getElementById('i-codfolha').value = await gerarNumeroFolhaBanco();
-    } catch (e) {
-        alert('Erro ao gerar número da folha no banco: ' + e.message);
-        return;
-    }
-
     renderDiag('start');
     nextStep('step-menu', 'step-terminal');
 }
@@ -876,7 +944,10 @@
 const SUPABASE_URL = "https://wflaneoglydtgieytqgy.supabase.co/";
 const SUPABASE_KEY = "sb_publishable_DGPH6FHxarnzo767CGyx_Q_MykoE5sf";
 const SUPABASE_TABLE = "os";
-const CHAVE_FOLHA_PENDENTE = 'folha_pendente_os';
+function limparFolhaPendenteLocal() {
+    // mantido por compatibilidade, não faz mais nada
+}
+
 function supabaseAtivo() {
     return !!SUPABASE_URL && SUPABASE_URL.includes("supabase.co");
 }
@@ -935,55 +1006,10 @@ function salvarBancoOS(lista) {
     localStorage.setItem('os_db', JSON.stringify(lista));
 }
 
-async function gerarNumeroFolhaBanco() {
-    const folhaLocal = getFolhaPendenteLocal();
+function getFolhaPendenteLocal() { return ''; }
+function setFolhaPendenteLocal(codfolha) {}
 
-    if (folhaLocal) {
-        return folhaLocal;
-    }
 
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pegar_ou_reservar_codfolha`, {
-        method: "POST",
-        headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({})
-    });
-
-    if (!resp.ok) {
-        throw new Error(await resp.text());
-    }
-
-    const numero = await resp.json();
-
-    setFolhaPendenteLocal(numero);
-
-    return numero;
-}
-
-function getFolhaPendenteLocal() {
-    try {
-        return localStorage.getItem(CHAVE_FOLHA_PENDENTE) || '';
-    } catch (e) {
-        return '';
-    }
-}
-
-function setFolhaPendenteLocal(codfolha) {
-    try {
-        if (codfolha) {
-            localStorage.setItem(CHAVE_FOLHA_PENDENTE, codfolha);
-        }
-    } catch (e) {}
-}
-
-function limparFolhaPendenteLocal() {
-    try {
-        localStorage.removeItem(CHAVE_FOLHA_PENDENTE);
-    } catch (e) {}
-}
 
 function limparFormularioCompleto() {
     document.getElementById('os-view').style.display = 'none';
@@ -1016,6 +1042,8 @@ function limparFormularioCompleto() {
 
     document.getElementById('search-os-num').value = '';
     osEmEdicao = null;
+    const btnApagar = document.getElementById('btn-apagar-edicao');
+    if (btnApagar) btnApagar.style.display = 'none';
 }
 
 function voltarParaEdicao() {
@@ -1099,77 +1127,55 @@ function coletarDadosFormulario() {
 async function salvarOSNoBanco() {
     const dados = coletarDadosFormulario();
 
-    let numero = normalizarNumeroFolha(dados['i-codfolha'] || '');
-
-    if (!numero) {
-        numero = await gerarNumeroFolhaBanco();
-    }
-
-    dados['i-codfolha'] = numero;
-    document.getElementById('i-codfolha').value = numero;
-
-    const registro = {
-        codfolha: numero,
-        dados: dados,
-        choices: { ...choices },
-        atualizado_em: new Date().toISOString()
-    };
-
+    // ── MODO OFFLINE ──
     if (!supabaseAtivo()) {
+        let numero = osEmEdicao || normalizarNumeroFolha(dados['i-codfolha'] || '');
+        if (!numero || numero === '00000') {
+            const banco = await getBancoOS();
+            const maxNum = banco.reduce((m, i) => Math.max(m, parseInt(i.osnum || '0', 10)), 0);
+            numero = String(maxNum + 1).padStart(5, '0');
+        }
+        dados['i-codfolha'] = numero;
+        document.getElementById('i-codfolha').value = numero;
+
         const banco = await getBancoOS();
+        const localRegistro = { osnum: numero, dados, choices: { ...choices }, atualizadoEm: new Date().toISOString() };
         const idx = banco.findIndex(item => item.osnum === numero);
-
-        const localRegistro = {
-            osnum: numero,
-            dados: dados,
-            choices: { ...choices },
-            atualizadoEm: new Date().toISOString()
-        };
-
-        if (idx >= 0) banco[idx] = localRegistro;
-        else banco.push(localRegistro);
-
+        if (idx >= 0) banco[idx] = localRegistro; else banco.push(localRegistro);
         banco.sort((a, b) => parseInt(b.osnum, 10) - parseInt(a.osnum, 10));
         salvarBancoOS(banco);
-
-        limparFolhaPendenteLocal();
         return;
     }
 
-    const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?on_conflict=codfolha`;
-
-    const respSalvar = await fetch(url, {
-        method: "POST",
-        headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`,
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates,return=minimal"
-        },
-        body: JSON.stringify([registro])
-    });
-
-    if (!respSalvar.ok) {
-        throw new Error(await respSalvar.text());
+    // ── EDIÇÃO DE OS EXISTENTE: upsert sem gerar novo número ──
+    if (osEmEdicao) {
+        dados['i-codfolha'] = osEmEdicao;
+        document.getElementById('i-codfolha').value = osEmEdicao;
+        const registro = {
+            codfolha: osEmEdicao,
+            dados: dados,
+            choices: { ...choices },
+            atualizado_em: new Date().toISOString()
+        };
+        const respSalvar = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?on_conflict=codfolha`, {
+            method: "POST",
+            headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify([registro])
+        });
+        if (!respSalvar.ok) throw new Error(await respSalvar.text());
+        return;
     }
 
-    const respMarcar = await fetch(`${SUPABASE_URL}/rest/v1/rpc/marcar_codfolha_como_usado`, {
+    // ── NOVA OS: banco gera o número via criar_os (atômico, sem conflito) ──
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/criar_os`, {
         method: "POST",
-        headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            p_codfolha: numero
-        })
+        headers: supabaseHeaders(),
+        body: JSON.stringify({ p_dados: dados, p_choices: choices })
     });
+    if (!resp.ok) throw new Error(await resp.text());
 
-    if (!respMarcar.ok) {
-        throw new Error(await respMarcar.text());
-    }
-
-    limparFolhaPendenteLocal();
+    const numero = await resp.json();
+    document.getElementById('i-codfolha').value = numero;
 }
 
 async function carregarOSExistente(numero) {
@@ -1202,6 +1208,9 @@ async function carregarOSExistente(numero) {
     }
 
     limparFormularioCompleto();
+    osEmEdicao = registro.osnum;
+    const btnApagar = document.getElementById('btn-apagar-edicao');
+    if (btnApagar) btnApagar.style.display = 'block';
     choices = registro.choices || { tipo: '', esp: '', processo: '' };
     localStorage.setItem('os_choices', JSON.stringify(choices));
 
@@ -1777,6 +1786,9 @@ function inicializarBuscaOS() {
         const val = (id) => document.getElementById(id).value;
         const setV = (id, v) => { if(document.getElementById(id)) document.getElementById(id).innerText = v; };
 
+        // Salva PRIMEIRO — garante que i-codfolha já tem o número antes de montar a OS
+        await salvarOSNoBanco();
+
         setV('v-sol', val('i-sol')); setV('v-osnum', val('i-osnum')); setV('v-codfolha', val('i-codfolha')); setV('v-setor', val('i-setor'));
         setV('v-tagm', val('i-tagm')); setV('v-tage', val('i-tage')); setV('v-turno', val('i-turno'));
         setV('v-desc', val('i-desc')); setV('v-serv', val('i-serv')); setV('v-obs', val('i-obs')); 
@@ -1831,7 +1843,6 @@ function inicializarBuscaOS() {
         });
 
         setV('v-tempo-parada', calcularTempoParada(val('i-hora'), tipoFinal));
-        await salvarOSNoBanco();
         document.getElementById('interface').style.display = 'none';
         document.getElementById('os-view').style.display = 'block';
         window.scrollTo(0,0);
@@ -2236,8 +2247,10 @@ function inicializarBuscaOS() {
 
 
 async function apagarOSAtual(){
-    const codigo = normalizarNumeroFolha(document.getElementById('i-codfolha')?.value || '');
-    if(!codigo){
+    const codigo = normalizarNumeroFolha(
+        document.getElementById('i-codfolha')?.value || osEmEdicao || ''
+    );
+    if(!codigo || codigo === '00000'){
         alert('Nenhum código de folha encontrado.');
         return;
     }
@@ -2253,9 +2266,7 @@ async function apagarOSAtual(){
             const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?codfolha=eq.${encodeURIComponent(codigo)}`;
             await supabaseRequest(url, {
                 method: "DELETE",
-                headers: supabaseHeaders({
-                    "Prefer": "return=minimal"
-                })
+                headers: supabaseHeaders({ "Prefer": "return=minimal" })
             });
         }
 
@@ -2264,7 +2275,6 @@ async function apagarOSAtual(){
     } catch (e) {
         alert('Erro ao apagar OS: ' + e.message);
     }
-   limparFolhaPendenteLocal();
 }
 
 
@@ -8996,21 +9006,7 @@ window.bancoDadosProtheus = [
     }
 ];
 
-function apagarOSAtual(){
-    const codigo = document.getElementById('i-codfolha')?.value || '';
-    if(!codigo){
-        alert('Nenhum código de folha encontrado.');
-        return;
-    }
-    if(!confirm('Deseja realmente apagar esta OS?')) return;
 
-    let banco = JSON.parse(localStorage.getItem('os_db') || '[]');
-    banco = banco.filter(item => item.osnum !== codigo);
-    localStorage.setItem('os_db', JSON.stringify(banco));
-
-    alert('OS apagada com sucesso.');
-    location.reload();
-}
 
 </script>
 <script>
@@ -9749,21 +9745,7 @@ window.bancoIrregularidades = [
     }
 ];
 
-function apagarOSAtual(){
-    const codigo = document.getElementById('i-codfolha')?.value || '';
-    if(!codigo){
-        alert('Nenhum código de folha encontrado.');
-        return;
-    }
-    if(!confirm('Deseja realmente apagar esta OS?')) return;
 
-    let banco = JSON.parse(localStorage.getItem('os_db') || '[]');
-    banco = banco.filter(item => item.osnum !== codigo);
-    localStorage.setItem('os_db', JSON.stringify(banco));
-
-    alert('OS apagada com sucesso.');
-    location.reload();
-}
 
 </script>
 <script>
@@ -20414,21 +20396,7 @@ window.bancoEquipamentos  = [
     }
 ];
 
-function apagarOSAtual(){
-    const codigo = document.getElementById('i-codfolha')?.value || '';
-    if(!codigo){
-        alert('Nenhum código de folha encontrado.');
-        return;
-    }
-    if(!confirm('Deseja realmente apagar esta OS?')) return;
 
-    let banco = JSON.parse(localStorage.getItem('os_db') || '[]');
-    banco = banco.filter(item => item.osnum !== codigo);
-    localStorage.setItem('os_db', JSON.stringify(banco));
-
-    alert('OS apagada com sucesso.');
-    location.reload();
-}
 
 </script>
 <script>
@@ -20563,21 +20531,7 @@ window.bancoColaboradores = [
     {"nome":"WILLIANS VAZ DE PINHO BATISTA","mat":"001706"}
 ];
 
-function apagarOSAtual(){
-    const codigo = document.getElementById('i-codfolha')?.value || '';
-    if(!codigo){
-        alert('Nenhum código de folha encontrado.');
-        return;
-    }
-    if(!confirm('Deseja realmente apagar esta OS?')) return;
 
-    let banco = JSON.parse(localStorage.getItem('os_db') || '[]');
-    banco = banco.filter(item => item.osnum !== codigo);
-    localStorage.setItem('os_db', JSON.stringify(banco));
-
-    alert('OS apagada com sucesso.');
-    location.reload();
-}
 
 </script>
 </body>
