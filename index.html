@@ -1127,24 +1127,9 @@ function coletarDadosFormulario() {
 async function salvarOSNoBanco() {
     const dados = coletarDadosFormulario();
 
-    // ── MODO OFFLINE ──
+    // ── SEM SUPABASE: bloqueia totalmente ──
     if (!supabaseAtivo()) {
-        let numero = osEmEdicao || normalizarNumeroFolha(dados['i-codfolha'] || '');
-        if (!numero || numero === '00000') {
-            const banco = await getBancoOS();
-            const maxNum = banco.reduce((m, i) => Math.max(m, parseInt(i.osnum || '0', 10)), 0);
-            numero = String(maxNum + 1).padStart(5, '0');
-        }
-        dados['i-codfolha'] = numero;
-        document.getElementById('i-codfolha').value = numero;
-
-        const banco = await getBancoOS();
-        const localRegistro = { osnum: numero, dados, choices: { ...choices }, atualizadoEm: new Date().toISOString() };
-        const idx = banco.findIndex(item => item.osnum === numero);
-        if (idx >= 0) banco[idx] = localRegistro; else banco.push(localRegistro);
-        banco.sort((a, b) => parseInt(b.osnum, 10) - parseInt(a.osnum, 10));
-        salvarBancoOS(banco);
-        return;
+        throw new Error('Sistema requer conexão com a rede. Verifique sua conexão e tente novamente.');
     }
 
     // ── EDIÇÃO DE OS EXISTENTE: upsert sem gerar novo número ──
@@ -1157,25 +1142,94 @@ async function salvarOSNoBanco() {
             choices: { ...choices },
             atualizado_em: new Date().toISOString()
         };
-        const respSalvar = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?on_conflict=codfolha`, {
-            method: "POST",
-            headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
-            body: JSON.stringify([registro])
+        await tentarComRetry(async () => {
+            const resp = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?on_conflict=codfolha`, {
+                method: "POST",
+                headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
+                body: JSON.stringify([registro])
+            });
+            if (!resp.ok) throw new Error(await resp.text());
         });
-        if (!respSalvar.ok) throw new Error(await respSalvar.text());
         return;
     }
 
-    // ── NOVA OS: banco gera o número via criar_os (atômico, sem conflito) ──
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/criar_os`, {
-        method: "POST",
-        headers: supabaseHeaders(),
-        body: JSON.stringify({ p_dados: dados, p_choices: choices })
-    });
-    if (!resp.ok) throw new Error(await resp.text());
+    // ── NOVA OS: tenta salvar com retry e proteção contra duplicata ──
+    let numero = null;
 
-    const numero = await resp.json();
+    await tentarComRetry(async () => {
+        // Antes de tentar, verifica se uma tentativa anterior já salvou
+        // (proteção contra queda de rede após o banco salvar)
+        const jaExiste = await verificarOSSalvaRecentemente(dados);
+        if (jaExiste) {
+            numero = jaExiste;
+            return; // OS já estava salva, usa o número encontrado
+        }
+
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/criar_os`, {
+            method: "POST",
+            headers: supabaseHeaders(),
+            body: JSON.stringify({ p_dados: dados, p_choices: choices })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        numero = await resp.json();
+    });
+
     document.getElementById('i-codfolha').value = numero;
+}
+
+// Busca OS salva nos últimos 2 minutos com os mesmos dados principais
+// Evita criar duplicata quando a rede caiu após o banco já ter salvo
+async function verificarOSSalvaRecentemente(dados) {
+    try {
+        const sol   = encodeURIComponent(dados['i-sol']   || '');
+        const data  = encodeURIComponent(dados['i-data']  || '');
+        const tagm  = encodeURIComponent(dados['i-tagm']  || '');
+        const tage  = encodeURIComponent(dados['i-tage']  || '');
+
+        if (!sol || !data || !tagm) return null;
+
+        const doisMinutosAtras = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`
+            + `?select=codfolha,dados`
+            + `&atualizado_em=gte.${encodeURIComponent(doisMinutosAtras)}`
+            + `&order=codfolha.desc&limit=10`;
+
+        const rows = await supabaseRequest(url, {
+            method: "GET",
+            headers: supabaseHeaders()
+        });
+
+        if (!rows || !rows.length) return null;
+
+        const encontrada = rows.find(row => {
+            const d = row.dados || {};
+            return d['i-sol']  === dados['i-sol']  &&
+                   d['i-data'] === dados['i-data'] &&
+                   d['i-tagm'] === dados['i-tagm'] &&
+                   d['i-tage'] === dados['i-tage'];
+        });
+
+        return encontrada ? encontrada.codfolha : null;
+    } catch (e) {
+        return null; // Se falhar a verificação, deixa tentar criar normalmente
+    }
+}
+
+// Retry com espera crescente: 1s → 2s → 4s (3 tentativas)
+async function tentarComRetry(fn, tentativas = 3) {
+    let ultimoErro;
+    for (let i = 0; i < tentativas; i++) {
+        try {
+            await fn();
+            return;
+        } catch (e) {
+            ultimoErro = e;
+            if (i < tentativas - 1) {
+                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+            }
+        }
+    }
+    throw ultimoErro;
 }
 
 async function carregarOSExistente(numero) {
@@ -1783,11 +1837,33 @@ function inicializarBuscaOS() {
 
     async function gerarFolha() {
         if(!validarForm()) return;
+
+        // ── Bloqueia botão para evitar duplo clique ──
+        const btnGerar = document.querySelector('.btn-gerar');
+        if (btnGerar.disabled) return;
+        btnGerar.disabled = true;
+        const textoOriginal = btnGerar.textContent;
+        btnGerar.textContent = '⏳ Salvando...';
+        btnGerar.style.opacity = '0.7';
+
+        try {
+            // Salva PRIMEIRO — garante que i-codfolha já tem o número antes de montar a OS
+            await salvarOSNoBanco();
+        } catch (e) {
+            // Restaura botão e mostra erro claro
+            btnGerar.disabled = false;
+            btnGerar.textContent = textoOriginal;
+            btnGerar.style.opacity = '';
+
+            const msgErro = e.message && e.message.includes('rede')
+                ? e.message
+                : '⚠️ Erro ao salvar no banco.\n\nVerifique sua conexão e tente novamente.\n\nSe o erro persistir, a OS pode ter sido salva — use "Pesquisar OS" para verificar antes de tentar de novo.';
+            alert(msgErro);
+            return;
+        }
+
         const val = (id) => document.getElementById(id).value;
         const setV = (id, v) => { if(document.getElementById(id)) document.getElementById(id).innerText = v; };
-
-        // Salva PRIMEIRO — garante que i-codfolha já tem o número antes de montar a OS
-        await salvarOSNoBanco();
 
         setV('v-sol', val('i-sol')); setV('v-osnum', val('i-osnum')); setV('v-codfolha', val('i-codfolha')); setV('v-setor', val('i-setor'));
         setV('v-tagm', val('i-tagm')); setV('v-tage', val('i-tage')); setV('v-turno', val('i-turno'));
@@ -1843,6 +1919,12 @@ function inicializarBuscaOS() {
         });
 
         setV('v-tempo-parada', calcularTempoParada(val('i-hora'), tipoFinal));
+
+        // Restaura botão e exibe a OS
+        btnGerar.disabled = false;
+        btnGerar.textContent = textoOriginal;
+        btnGerar.style.opacity = '';
+
         document.getElementById('interface').style.display = 'none';
         document.getElementById('os-view').style.display = 'block';
         window.scrollTo(0,0);
