@@ -944,6 +944,98 @@
 const SUPABASE_URL = "https://wflaneoglydtgieytqgy.supabase.co/";
 const SUPABASE_KEY = "sb_publishable_DGPH6FHxarnzo767CGyx_Q_MykoE5sf";
 const SUPABASE_TABLE = "os";
+const SUPABASE_TABLE_USERS = "usuarios_dashboard";
+const CHAVE_AUTOR_OS = "__os_criada_por_login";
+window.osCriadoPor = '';
+window.osPodeEditar = true;
+
+function getUsuarioLogadoDashboard() {
+    return String(sessionStorage.getItem("logado") || localStorage.getItem("logado") || "").trim();
+}
+
+function isAdminLogadoDashboard() {
+    return String(sessionStorage.getItem("admin") || localStorage.getItem("admin") || "false") === "true";
+}
+
+function salvarSessaoDashboardLocal(usuario, isAdmin) {
+    sessionStorage.setItem("logado", usuario);
+    sessionStorage.setItem("admin", isAdmin ? "true" : "false");
+    localStorage.setItem("logado", usuario);
+    localStorage.setItem("admin", isAdmin ? "true" : "false");
+}
+
+async function validarLoginDashboard(usuario, senha) {
+    const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE_USERS}?usuario=eq.${encodeURIComponent(usuario)}&senha=eq.${encodeURIComponent(senha)}&select=usuario,is_admin&limit=1`;
+    const rows = await supabaseRequest(url, {
+        method: "GET",
+        headers: supabaseHeaders()
+    });
+
+    if (rows && rows.length) {
+        return {
+            usuario: rows[0].usuario,
+            is_admin: !!rows[0].is_admin
+        };
+    }
+
+    return null;
+}
+
+async function autenticarLoginDashboardSeNecessario() {
+    const usuarioJaLogado = getUsuarioLogadoDashboard();
+    if (usuarioJaLogado) return true;
+
+    const usuario = prompt('Para editar ou excluir a OS, informe o mesmo usuário do dashboard:');
+    if (usuario === null) return false;
+
+    const senha = prompt('Agora informe a senha desse usuário:');
+    if (senha === null) return false;
+
+    const cred = await validarLoginDashboard(String(usuario).trim(), String(senha));
+    if (!cred) {
+        alert('Usuário ou senha inválidos.');
+        return false;
+    }
+
+    salvarSessaoDashboardLocal(cred.usuario, cred.is_admin);
+    return true;
+}
+
+function getAutorRegistroOS(registro) {
+    if (!registro) return '';
+    if (registro.criadoPor) return String(registro.criadoPor).trim();
+    const dados = registro.dados || {};
+    return String(dados[CHAVE_AUTOR_OS] || '').trim();
+}
+
+function podeEditarOuExcluirOS(registro) {
+    const usuarioAtual = getUsuarioLogadoDashboard();
+    if (!usuarioAtual) return false;
+    if (isAdminLogadoDashboard()) return true;
+    const autor = getAutorRegistroOS(registro);
+    if (!autor) return true;
+    return autor === usuarioAtual;
+}
+
+function aplicarPermissaoEdicaoUI() {
+    const podeEditar = !!window.osPodeEditar;
+
+    document.querySelectorAll('#step-head input, #step-head textarea, #step-head select, #step-desc input, #step-desc textarea, #step-desc select, #step-exec input, #step-exec textarea, #step-exec select').forEach(el => {
+        if (el.id === 'search-os-num' || el.id === 'i-codfolha') return;
+        el.disabled = !podeEditar;
+    });
+
+    document.querySelectorAll('#step-desc .slot-remover, #step-desc .seta-busca, #step-desc .slot-seta').forEach(el => {
+        el.style.pointerEvents = podeEditar ? '' : 'none';
+        el.style.opacity = podeEditar ? '' : '0.5';
+    });
+
+    const btnGerar = document.querySelector('.btn-gerar');
+    const btnApagar = document.getElementById('btn-apagar-edicao');
+
+    if (btnGerar) btnGerar.style.display = podeEditar ? 'block' : 'none';
+    if (btnApagar) btnApagar.style.display = (osEmEdicao && podeEditar) ? 'block' : 'none';
+}
 function limparFolhaPendenteLocal() {
     // mantido por compatibilidade, não faz mais nada
 }
@@ -1042,8 +1134,11 @@ function limparFormularioCompleto() {
 
     document.getElementById('search-os-num').value = '';
     osEmEdicao = null;
+    window.osCriadoPor = '';
+    window.osPodeEditar = true;
     const btnApagar = document.getElementById('btn-apagar-edicao');
     if (btnApagar) btnApagar.style.display = 'none';
+    aplicarPermissaoEdicaoUI();
 }
 
 function voltarParaEdicao() {
@@ -1125,7 +1220,31 @@ function coletarDadosFormulario() {
 }
 
 async function salvarOSNoBanco() {
+    if (!getUsuarioLogadoDashboard() && !osEmEdicao) {
+        // nova OS continua liberada sem login obrigatório
+    } else if (!getUsuarioLogadoDashboard()) {
+        const autenticou = await autenticarLoginDashboardSeNecessario();
+        if (!autenticou) throw new Error('Login cancelado');
+    }
+
     const dados = coletarDadosFormulario();
+    const usuarioLogado = getUsuarioLogadoDashboard();
+
+    if (osEmEdicao) {
+        if (!window.osPodeEditar) {
+            alert('Somente o mesmo login do dashboard que abriu esta OS pode editar ou excluir.');
+            throw new Error('Sem permissão para editar esta OS');
+        }
+
+        if (window.osCriadoPor) {
+            dados[CHAVE_AUTOR_OS] = window.osCriadoPor;
+        } else if (usuarioLogado) {
+            dados[CHAVE_AUTOR_OS] = usuarioLogado;
+            window.osCriadoPor = usuarioLogado;
+        }
+    } else if (usuarioLogado) {
+        dados[CHAVE_AUTOR_OS] = usuarioLogado;
+    }
 
     // ── SEM SUPABASE: bloqueia totalmente ──
     if (!supabaseAtivo()) {
@@ -1235,6 +1354,11 @@ async function tentarComRetry(fn, tentativas = 3) {
 async function carregarOSExistente(numero) {
     numero = normalizarNumeroFolha(numero);
 
+    if (!getUsuarioLogadoDashboard()) {
+        const autenticou = await autenticarLoginDashboardSeNecessario();
+        if (!autenticou) return;
+    }
+
     let registro = null;
 
     if (!supabaseAtivo()) {
@@ -1263,8 +1387,12 @@ async function carregarOSExistente(numero) {
 
     limparFormularioCompleto();
     osEmEdicao = registro.osnum;
+    window.osCriadoPor = getAutorRegistroOS(registro);
+    window.osPodeEditar = podeEditarOuExcluirOS(registro);
+
     const btnApagar = document.getElementById('btn-apagar-edicao');
-    if (btnApagar) btnApagar.style.display = 'block';
+    if (btnApagar) btnApagar.style.display = window.osPodeEditar ? 'block' : 'none';
+
     choices = registro.choices || { tipo: '', esp: '', processo: '' };
     localStorage.setItem('os_choices', JSON.stringify(choices));
 
@@ -1289,6 +1417,12 @@ async function carregarOSExistente(numero) {
     });
 
     aplicarStatusCamposObrigatorios();
+    aplicarPermissaoEdicaoUI();
+
+    if (!window.osPodeEditar) {
+        const autor = window.osCriadoPor || 'outro usuário';
+        alert(`Esta OS está vinculada ao login "${autor}". Somente esse mesmo login do dashboard pode editar ou excluir.`);
+    }
 
     document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active-step'));
     document.getElementById('step-head').classList.add('active-step');
@@ -2329,11 +2463,21 @@ function inicializarBuscaOS() {
 
 
 async function apagarOSAtual(){
+    if (!getUsuarioLogadoDashboard()) {
+        const autenticou = await autenticarLoginDashboardSeNecessario();
+        if (!autenticou) return;
+    }
+
     const codigo = normalizarNumeroFolha(
         document.getElementById('i-codfolha')?.value || osEmEdicao || ''
     );
     if(!codigo || codigo === '00000'){
         alert('Nenhum código de folha encontrado.');
+        return;
+    }
+
+    if(!window.osPodeEditar){
+        alert('Somente o mesmo login do dashboard que abriu esta OS pode excluir.');
         return;
     }
 
